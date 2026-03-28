@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: classic-web-chat-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-chat_app}
+      POSTGRES_USER: ${POSTGRES_USER:-chat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chat}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chat} -d ${POSTGRES_DB:-chat_app}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: classic-web-chat-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${BACKEND_NODE_ENV:-development}
+      APP_PORT: ${BACKEND_PORT:-3000}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      RESET_PASSWORD_URL_BASE: ${RESET_PASSWORD_URL_BASE:-http://localhost:5173/reset-password}
+      DATABASE_URL: postgres://${POSTGRES_USER:-chat}:${POSTGRES_PASSWORD:-chat}@postgres:5432/${POSTGRES_DB:-chat_app}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-chat_sid}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      RESET_TOKEN_TTL_MINUTES: ${RESET_TOKEN_TTL_MINUTES:-30}
+      UPLOADS_DIR: ${UPLOADS_DIR:-src/storage/uploads}
+      MAILBOX_DIR: ${MAILBOX_DIR:-src/storage/mailbox}
+      MAIL_FROM: ${MAIL_FROM:-Classic Chat <no-reply@classic-chat.local>}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAX_TEXT_BYTES: ${MAX_TEXT_BYTES:-3072}
+      MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES:-20971520}
+      MAX_IMAGE_SIZE_BYTES: ${MAX_IMAGE_SIZE_BYTES:-3145728}
+      TRANSLATION_API_URL: ${TRANSLATION_API_URL:-http://translator:5000/translate}
+      TRANSLATION_API_KEY: ${TRANSLATION_API_KEY:-}
+      TRANSLATION_TIMEOUT_MS: ${TRANSLATION_TIMEOUT_MS:-15000}
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - backend_uploads:/app/src/storage/uploads
+      - backend_mailbox:/app/src/storage/mailbox
+
+  translator:
+    image: libretranslate/libretranslate
+    container_name: classic-web-chat-translator
+    environment:
+      LT_LOAD_ONLY: ${TRANSLATION_LOAD_ONLY:-uk,en,pl,de,es,fr,it,pt,tr,ru}
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: classic-web-chat-mailpit
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: classic-web-chat-frontend
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+      VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3000}
+      VITE_DEV_MAILBOX_URL: ${VITE_DEV_MAILBOX_URL:-http://localhost:8025}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
+  backend_uploads:
+  backend_mailbox:
