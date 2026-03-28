@@ -6,29 +6,162 @@ Classic Web Chat is a workshop-ready web chat application built as a monorepo wi
 - Node.js + Express backend
 - PostgreSQL persistence
 - Socket.IO realtime delivery and presence
-- local filesystem uploads
+- local filesystem attachment storage
 - Docker Compose startup from the repository root
 
-The project is designed so the whole stack starts with `docker compose up`.
+The project follows a classic web chat model: rooms, personal dialogs, contacts, moderation, history, unread indicators, and presence.
 
-## Setup
+## Run The Project
 
-1. Copy the root environment template if you want to override defaults:
+1. Optional: copy the root environment template.
 
 ```bash
 cp .env.example .env
 ```
 
-2. Start everything from the repository root:
+2. Start the full stack from the repository root.
 
 ```bash
 docker compose up --build
 ```
 
-3. Open:
+3. Open the app and health endpoint.
 
 - Frontend: [http://localhost:5173](http://localhost:5173)
-- Backend healthcheck: [http://localhost:3000/health](http://localhost:3000/health)
+- Backend health: [http://localhost:3000/health](http://localhost:3000/health)
+
+## Services
+
+`docker-compose.yml` starts these services:
+
+- `frontend` on port `5173`
+- `backend` on port `3000`
+- `postgres` on port `5432`
+- `translator` for on-demand message translation
+- `mailpit` on port `8025` for local email testing
+
+Persistent Docker volumes:
+
+- `postgres_data`
+- `backend_uploads`
+- `backend_mailbox`
+
+## Password Reset And Email
+
+Password reset is email-based.
+
+Two practical modes are supported:
+
+1. Local development mailbox
+   - leave the default Mailpit settings
+   - open [http://localhost:8025](http://localhost:8025) to see reset emails locally
+
+2. Real SMTP mailbox
+   - configure `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `MAIL_FROM` in the root `.env`
+   - for Gmail, use a Google App Password, not the normal account password
+
+The reset link points to `http://localhost:5173/reset-password` by default, so it should be opened on the same machine where the stack is running.
+
+## Main Features
+
+### Accounts and sessions
+
+- registration with unique email
+- immutable unique username
+- login with persistent session cookies
+- logout for the current session only
+- active sessions list with revoke support
+- password change
+- password reset through email
+- account deletion
+
+### Presence
+
+- online / AFK / offline states
+- multi-tab presence handling
+- low-latency presence updates through Socket.IO
+
+### Contacts and personal dialogs
+
+- friend requests by username
+- friend requests from room member lists
+- accept / reject / cancel request
+- remove friend
+- user-to-user ban
+- personal dialogs allowed only between friends when neither side banned the other
+- frozen read-only personal history after a user ban
+
+### Rooms and moderation
+
+- public rooms with searchable catalog
+- private rooms by invitation only
+- unique room names
+- owner / admin / member model
+- room bans and unbans
+- remove member as a ban action
+- view who banned a user in the ban list
+- manage admins
+- delete room
+
+### Messaging
+
+- room messages and personal messages
+- multiline text
+- UTF-8 text and emoji
+- replies
+- edit own message with edited indicator
+- delete by author or room moderators
+- persistent ordered history
+- infinite scroll for older messages
+- typing indicators
+- message reactions
+
+### Files and images
+
+- upload button
+- paste support
+- images and arbitrary files
+- original file name preservation
+- optional attachment comment
+- protected download by room membership / dialog authorization
+- loss of room access blocks room message and file access
+
+### UI and realtime
+
+- classic side navigation with rooms and contacts
+- unread indicators for rooms and personal dialogs
+- room member presence
+- moderation actions through modal dialogs
+- automatic scroll to new messages when already at the bottom
+- no forced autoscroll when reading older history
+
+## Additional UI Extensions
+
+The current build also includes a few optional extras on top of the core assignment flow:
+
+- profile customization with generated looks
+- hearts / profile likes
+- weekly leaderboard view
+- daily app activity quests
+- discussion / goals / voice panes inside rooms
+
+These are additions around the chat experience; the core required chat flows remain available.
+
+## Verification
+
+Useful checks after startup:
+
+```bash
+docker compose exec backend node src/scripts/requirementsSmoke.mjs
+docker compose exec frontend npm run build
+docker compose ps
+```
+
+Expected result:
+
+- backend smoke script prints `SMOKE_OK`
+- frontend build finishes successfully
+- `frontend`, `backend`, `postgres`, `translator`, and `mailpit` are running
 
 ## Project Structure
 
@@ -37,6 +170,7 @@ docker compose up --build
 |-- backend/
 |   |-- Dockerfile
 |   |-- package.json
+|   |-- .env.example
 |   `-- src/
 |       |-- config/
 |       |-- db/
@@ -51,6 +185,7 @@ docker compose up --build
 |-- frontend/
 |   |-- Dockerfile
 |   |-- package.json
+|   |-- .env.example
 |   `-- src/
 |       |-- api/
 |       |-- app/
@@ -61,114 +196,33 @@ docker compose up --build
 |       `-- styles/
 |-- infra/
 |   `-- postgres/
+|-- .env.example
 |-- docker-compose.yml
 `-- README.md
 ```
 
-## Feature Checklist
-
-### Authentication and account access
-
-- [x] Registration with unique email and immutable username
-- [x] Login with persistent cookie-based sessions
-- [x] Logout current session only
-- [x] Active sessions listing with revoke support
-- [x] Password change
-- [x] Password reset token flow placeholder
-- [x] Account deletion
-
-### Rooms and moderation
-
-- [x] Public/private rooms
-- [x] Unique room names
-- [x] Public room catalog with search
-- [x] Private room invitations
-- [x] Room members and admin roles
-- [x] Room bans and unbans
-- [x] Owner-only room deletion
-- [x] Room moderation modals in frontend
-
-### Social and personal messaging
-
-- [x] Friend requests by username
-- [x] Accept and reject friend requests
-- [x] Friend list
-- [x] Remove friend
-- [x] User-to-user bans
-- [x] Personal dialogs with fixed two participants
-- [x] Frozen read-only dialogs after user ban
-
-### Messaging and files
-
-- [x] Persistent room and personal messages
-- [x] Reply support
-- [x] Edit and delete flows
-- [x] Infinite history pagination
-- [x] Typing indicators
-- [x] Message reactions
-- [x] User main language preference
-- [x] On-demand message translation into the user's selected language
-- [x] Attachment upload and protected download
-- [x] Paste or picker-based attachment input in UI
-- [x] Room access loss blocks room files/messages
-
-### Realtime and presence
-
-- [x] Socket.IO authentication
-- [x] Low-latency message events
-- [x] Multiple-tab connection tracking
-- [x] Online / AFK / offline presence model
-- [x] Unread refresh events
-
-### Submission and operations
-
-- [x] `docker compose up` from repository root
-- [x] Persistent PostgreSQL volume
-- [x] Persistent upload volume
-- [x] Root README and startup instructions
-
 ## Environment Notes
 
-- Root defaults live in [`.env.example`](./.env.example)
-- Backend-specific variables live in [`backend/.env.example`](./backend/.env.example)
-- Frontend-specific variables live in [`frontend/.env.example`](./frontend/.env.example)
+The main shared template is:
 
-The Compose setup already provides working defaults, so copying env files is optional unless you want custom ports or credentials.
+- [`./.env.example`](./.env.example)
 
-On the first start, the bundled translation service can take extra time to warm up and download language models. If the first translation attempt returns a temporary unavailable message, wait a bit and try again.
+Additional local templates are available in:
 
-## Verification
+- [`./backend/.env.example`](./backend/.env.example)
+- [`./frontend/.env.example`](./frontend/.env.example)
 
-After the stack is running, these commands are useful for a quick submission check:
-
-```bash
-docker compose exec backend node src/scripts/requirementsSmoke.mjs
-docker compose exec frontend npm run build
-docker compose ps
-```
-
-Expected result:
-
-- the backend smoke script prints `SMOKE_OK`
-- the frontend build completes successfully
-- compose shows `frontend`, `backend`, `postgres`, and `translator` as running
-
-## Known Limitations and Future Improvements
-
-- Password reset uses a returned token instead of real email delivery.
-- Frontend uses safe refreshes after some moderation actions instead of full optimistic reconciliation.
-- Search indexing and notification preferences are not implemented yet.
-- Uploads are stored locally only; there is no object storage backend.
-- Presence is derived from socket heartbeat timing and can be less precise if the browser heavily suspends background tabs.
+For most local runs, the root `.env.example` is enough.
 
 ## Supporting Docs
 
-- Architecture plan: [docs/architecture.md](./docs/architecture.md)
-- Schema and business-rule notes: [docs/api-notes.md](./docs/api-notes.md)
-- Destructive-flow test checklist: [docs/test-cases.md](./docs/test-cases.md)
+- Architecture notes: [docs/architecture.md](./docs/architecture.md)
+- API and schema notes: [docs/api-notes.md](./docs/api-notes.md)
+- Manual destructive-flow test cases: [docs/test-cases.md](./docs/test-cases.md)
 
 ## Submission Checklist
 
-- [ ] Push the finished repository to a public GitHub or GitLab repository
+- [ ] Push the repository to a public GitHub or GitLab repository
 - [ ] Verify `docker compose up` works from the repository root
+- [ ] Verify `SMOKE_OK` and frontend build before submission
 - [ ] Prepare the Word document with full name and repository link
